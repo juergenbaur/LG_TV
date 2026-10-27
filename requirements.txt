@@ -1,0 +1,2 @@
+aiohttp>=3.9
+aiowebostv>=0.4

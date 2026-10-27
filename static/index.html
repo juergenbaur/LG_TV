@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>LG Remote</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px; font: 18px -apple-system, system-ui, sans-serif;
+         background: #111; color: #eee; max-width: 520px; margin-inline: auto; }
+  h2 { font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #888; margin: 24px 0 8px; }
+  .row { display: flex; gap: 10px; margin-bottom: 10px; }
+  button, select { flex: 1; min-height: 64px; font-size: 22px; border: 0; border-radius: 14px;
+                   background: #2a2a2e; color: #eee; touch-action: manipulation; }
+  button:active { background: #44444a; }
+  button.danger { background: #6a1b1b; }
+  select { padding: 0 12px; }
+  input[type=range] { width: 100%; height: 44px; }
+  #info { color: #aaa; text-align: center; margin: 8px 0; min-height: 1.4em; }
+  #err { color: #f66; text-align: center; min-height: 1.4em; font-size: 14px; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+</style>
+</head>
+<body>
+<div id="info">connecting…</div>
+<div id="err"></div>
+
+<h2>Volume</h2>
+<div class="row">
+  <button onclick="api('volume',{delta:-1})">Vol −</button>
+  <button id="mute" onclick="toggleMute()">Mute</button>
+  <button onclick="api('volume',{delta:1})">Vol +</button>
+</div>
+<input id="vol" type="range" min="0" max="100" onchange="api('volume',{level:+this.value})">
+
+<h2>Channel</h2>
+<div class="row">
+  <button onclick="api('channel',{delta:-1})">Ch −</button>
+  <button onclick="api('channel',{delta:1})">Ch +</button>
+</div>
+<div class="row"><select id="channels" onchange="api('channel',{id:this.value})"></select></div>
+
+<h2>Navigate</h2>
+<div class="dpad">
+  <span></span><button onclick="key('UP')">▲</button><span></span>
+  <button onclick="key('LEFT')">◀</button><button onclick="key('ENTER')">OK</button><button onclick="key('RIGHT')">▶</button>
+  <span></span><button onclick="key('DOWN')">▼</button><span></span>
+</div>
+<div class="row" style="margin-top:10px">
+  <button onclick="key('BACK')">Back</button>
+  <button onclick="key('HOME')">Home</button>
+  <button onclick="key('EXIT')">Exit</button>
+</div>
+
+<h2>Power</h2>
+<div class="row"><button class="danger" onclick="if(confirm('Turn TV off?'))api('power_off',{})">Power off</button></div>
+
+<script>
+let muted = false;
+const $ = id => document.getElementById(id);
+
+async function api(path, body) {
+  try {
+    const r = await fetch('/api/' + path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const j = await r.json();
+    $('err').textContent = j.ok ? '' : j.error;
+  } catch (e) { $('err').textContent = e; }
+  setTimeout(refresh, 400);
+}
+const key = name => api('button', {name});
+const toggleMute = () => api('mute', {muted: !muted});
+
+async function refresh() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    if (s.ok === false) { $('err').textContent = s.error; return; }
+    muted = !!s.muted;
+    $('vol').value = s.volume ?? 0;
+    $('mute').textContent = muted ? 'Unmute' : 'Mute';
+    const c = s.channel || {};
+    $('info').textContent = (c.channelNumber ? c.channelNumber + ' · ' : '') + (c.channelName || '') + ' — Vol ' + (s.volume ?? '?');
+    const sel = $('channels');
+    if (s.channels.length && sel.options.length !== s.channels.length) {
+      sel.innerHTML = s.channels.map(ch => `<option value="${ch.id}">${ch.number} ${ch.name}</option>`).join('');
+    }
+    if (c.channelId) sel.value = c.channelId;
+  } catch (e) { $('err').textContent = e; }
+}
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>
