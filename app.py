@@ -1,6 +1,7 @@
 """Minimal web remote for an LG webOS TV. Run on a machine in the same LAN."""
 import asyncio
 import os
+import socket
 from pathlib import Path
 
 from aiohttp import web
@@ -8,6 +9,7 @@ from aiowebostv import WebOsClient
 
 TV_IP = os.environ.get("TV_IP", "192.168.1.99")
 PORT = int(os.environ.get("PORT", "8080"))
+TV_MAC = os.environ.get("TV_MAC", "")  # e.g. aa:bb:cc:dd:ee:ff, needed for power on
 KEY_FILE = Path(__file__).with_name(".client_key")
 STATIC = Path(__file__).with_name("static")
 
@@ -108,6 +110,18 @@ async def power_off(request):
     return web.json_response({"ok": True})
 
 
+async def power_on(request):
+    mac = bytes.fromhex(TV_MAC.replace(":", "").replace("-", "")) if TV_MAC else b""
+    if len(mac) != 6:
+        raise web.HTTPBadRequest(text="set TV_MAC=aa:bb:cc:dd:ee:ff")
+    packet = b"\xff" * 6 + mac * 16
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        for _ in range(3):  # UDP is lossy; resend
+            sock.sendto(packet, ("255.255.255.255", 9))
+    return web.json_response({"ok": True})
+
+
 @web.middleware
 async def errors(request, handler):
     try:
@@ -127,6 +141,7 @@ app.add_routes([
     web.post("/api/channel", channel),
     web.post("/api/button", button),
     web.post("/api/power_off", power_off),
+    web.post("/api/power_on", power_on),
 ])
 
 if __name__ == "__main__":

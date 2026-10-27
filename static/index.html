@@ -54,7 +54,8 @@
 </div>
 
 <h2>Power</h2>
-<div class="row"><button class="danger" onclick="if(confirm('Turn TV off?'))api('power_off',{})">Power off</button></div>
+<div class="row"><button onclick="api('power_on',{})">Power on</button>
+  <button class="danger" onclick="if(confirm('Turn TV off?'))api('power_off',{})">Power off</button></div>
 
 <script>
 let muted = false;
